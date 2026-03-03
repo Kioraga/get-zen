@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Get Zen
+Comment=Instalador de Zen Browser con GearLever
+Exec=get-zen
+Icon=get-zen
+Type=Application
+Categories=Utility;Network;
+Keywords=zen;browser;installer;
+StartupNotify=true

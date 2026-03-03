@@ -1,0 +1,24 @@
+[package]
+name = "get-zen"
+version = "0.1.0"
+edition = "2021"
+description = "Instalador gráfico de Zen Browser usando GearLever"
+authors = ["kioraga"]
+
+[[bin]]
+name = "get-zen"
+path = "src/main.rs"
+
+[dependencies]
+gtk4 = { version = "0.9", features = ["v4_12"] }
+glib = "0.20"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

@@ -87,13 +87,31 @@ sleep 2
 
 echo -e "${GREEN}Descargando GearLever...${NC}"
 echo -e "${BLUE}Obteniendo URL de la última versión...${NC}"
-GEAR_LEVER_URL=$(curl -s -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-                      https://api.github.com/repos/pkgforge-dev/Gear-Lever-AppImage/releases/latest | \
-                      grep -o '"browser_download_url": *"[^"]*x86_64\.AppImage"' | \
-                      grep -o 'https://[^"]*')
+
+GEAR_LEVER_URL=""
+for attempt in $(seq 1 5); do
+    echo -e "${BLUE}Intento $attempt de 5 (API GitHub)...${NC}"
+    GEAR_LEVER_URL=$(curl -s \
+                          -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+                          -H "Accept: application/vnd.github+json" \
+                          --connect-timeout 10 \
+                          --max-time 30 \
+                          https://api.github.com/repos/pkgforge-dev/Gear-Lever-AppImage/releases/latest | \
+                          grep -o '"browser_download_url": *"[^"]*x86_64\.AppImage"' | \
+                          grep -o 'https://[^"]*')
+    if [ -n "$GEAR_LEVER_URL" ]; then
+        break
+    fi
+    if [ "$attempt" -lt 5 ]; then
+        WAIT=$((attempt * 3))
+        echo -e "${YELLOW}No se obtuvo respuesta. Esperando ${WAIT}s antes de reintentar...${NC}"
+        sleep $WAIT
+    fi
+done
 
 if [ -z "$GEAR_LEVER_URL" ]; then
     echo -e "${RED}Error: No se pudo obtener la URL de GearLever.${NC}"
+    echo -e "${YELLOW}Tip: Es posible que la API de GitHub esté limitando las peticiones. Espera unos minutos e inténtalo de nuevo.${NC}"
     rm -rf "$TEMP_DIR"
     exit 1
 fi

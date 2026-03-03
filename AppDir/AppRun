@@ -1,0 +1,15 @@
+#!/bin/bash
+SELF=$(readlink -f "$0")
+HERE="${SELF%/*}"
+
+export PATH="${HERE}/usr/bin:${PATH:+:$PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export XDG_DATA_DIRS="${HERE}/usr/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+
+# GTK theme dirs
+export GDK_PIXBUF_MODULEDIR="${HERE}/usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0/loaders"
+if [ -f "${GDK_PIXBUF_MODULEDIR}/../loaders.cache" ]; then
+    export GDK_PIXBUF_MODULE_FILE="${GDK_PIXBUF_MODULEDIR}/../loaders.cache"
+fi
+
+exec "${HERE}/usr/bin/get-zen" "$@"
