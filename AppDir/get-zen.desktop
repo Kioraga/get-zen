@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Get Zen
-Comment=Instalador de Zen Browser con GearLever
+Comment=Zen Browser installer with GearLever
 Exec=get-zen
 Icon=get-zen
 Type=Application

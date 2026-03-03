@@ -2,7 +2,7 @@
 name = "get-zen"
 version = "0.1.0"
 edition = "2021"
-description = "Instalador gráfico de Zen Browser usando GearLever"
+description = "Graphical Zen Browser installer using GearLever"
 authors = ["kioraga"]
 
 [[bin]]

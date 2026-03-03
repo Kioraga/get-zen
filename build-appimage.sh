@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-# ─── Colores ──────────────────────────────────────────────────────────────────
+# ─── Colors ──────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
@@ -19,26 +19,26 @@ ASSETS="$SCRIPT_DIR/assets"
 OUTPUT="$SCRIPT_DIR/get-zen-x86_64.AppImage"
 APPIMAGETOOL="$SCRIPT_DIR/appimagetool-x86_64.AppImage"
 
-# ─── 1. Compilar binario ──────────────────────────────────────────────────────
-info "Compilando get-zen en modo release..."
+# ─── 1. Build binary ──────────────────────────────────────────────────────────
+info "Building get-zen in release mode..."
 cd "$SCRIPT_DIR"
 cargo build --release
-success "Compilación completada."
+success "Build complete."
 
-# ─── 2. Preparar AppDir ───────────────────────────────────────────────────────
-info "Preparando AppDir..."
+# ─── 2. Prepare AppDir ────────────────────────────────────────────────────────
+info "Preparing AppDir..."
 mkdir -p "$APPDIR/usr/bin"
 mkdir -p "$APPDIR/usr/share/applications"
 mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$APPDIR/usr/share/icons/hicolor/scalable/apps"
 
-# Copiar binario
+# Copy binary
 cp "$SCRIPT_DIR/target/release/get-zen" "$APPDIR/usr/bin/get-zen"
 chmod +x "$APPDIR/AppRun"
-success "Binario copiado."
+success "Binary copied."
 
-# ─── 3. Convertir icono SVG a PNG ─────────────────────────────────────────────
-info "Convirtiendo icono SVG a PNG..."
+# ─── 3. Convert SVG icon to PNG ───────────────────────────────────────────────
+info "Converting SVG icon to PNG..."
 SVG_ICON="$ASSETS/get-zen.svg"
 PNG_ICON="$APPDIR/get-zen.png"
 
@@ -53,8 +53,8 @@ convert_svg_to_png() {
     elif command -v magick &>/dev/null; then
         magick -background none -resize "${size}x${size}" "$svg" "$png"
     else
-        warning "No se encontró convertidor SVG→PNG (rsvg-convert/inkscape/imagemagick)."
-        warning "Saltando conversión de icono; el AppImage usará el SVG directamente."
+        warning "No SVG→PNG converter found (rsvg-convert/inkscape/imagemagick)."
+        warning "Skipping icon conversion; AppImage will use the SVG directly."
         cp "$svg" "$png" || true
         return 1
     fi
@@ -65,41 +65,41 @@ convert_svg_to_png "$SVG_ICON" "$PNG_ICON" 256
 convert_svg_to_png "$SVG_ICON" "$APPDIR/usr/share/icons/hicolor/256x256/apps/get-zen.png" 256
 cp "$SVG_ICON" "$APPDIR/usr/share/icons/hicolor/scalable/apps/get-zen.svg"
 cp "$APPDIR/get-zen.desktop" "$APPDIR/usr/share/applications/get-zen.desktop"
-success "Icono copiado."
+success "Icon copied."
 
-# ─── 4. Descargar appimagetool si no está presente ───────────────────────────
+# ─── 4. Download appimagetool if not present ─────────────────────────────────
 if [ ! -f "$APPIMAGETOOL" ]; then
-    info "Descargando appimagetool..."
+    info "Downloading appimagetool..."
     APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
     if command -v curl &>/dev/null; then
-        curl -sL -o "$APPIMAGETOOL" "$APPIMAGETOOL_URL" || error "No se pudo descargar appimagetool."
+        curl -sL -o "$APPIMAGETOOL" "$APPIMAGETOOL_URL" || error "Failed to download appimagetool."
     elif command -v wget &>/dev/null; then
-        wget -q -O "$APPIMAGETOOL" "$APPIMAGETOOL_URL" || error "No se pudo descargar appimagetool."
+        wget -q -O "$APPIMAGETOOL" "$APPIMAGETOOL_URL" || error "Failed to download appimagetool."
     else
-        error "Se necesita curl o wget para descargar appimagetool."
+        error "curl or wget is required to download appimagetool."
     fi
     chmod +x "$APPIMAGETOOL"
-    success "appimagetool descargado."
+    success "appimagetool downloaded."
 else
-    success "appimagetool ya presente."
+    success "appimagetool already present."
 fi
 
-# ─── 5. Crear AppImage ────────────────────────────────────────────────────────
-info "Creando AppImage..."
+# ─── 5. Create AppImage ──────────────────────────────────────────────────────
+info "Creating AppImage..."
 cd "$SCRIPT_DIR"
 
-# Necesario para FUSE en entornos sin soporte nativo
+# Required for FUSE in environments without native support
 export APPIMAGE_EXTRACT_AND_RUN=1
 
 "$APPIMAGETOOL" "$APPDIR" "$OUTPUT"
 
 if [ -f "$OUTPUT" ]; then
-    success "AppImage creada exitosamente: $(basename "$OUTPUT")"
+    success "AppImage created successfully: $(basename "$OUTPUT")"
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  get-zen-x86_64.AppImage lista para distribuir  ${NC}"
+    echo -e "${GREEN}  get-zen-x86_64.AppImage ready to distribute    ${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     ls -lh "$OUTPUT"
 else
-    error "No se generó el AppImage. Revisa los errores anteriores."
+    error "AppImage was not generated. Check the errors above."
 fi
