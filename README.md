@@ -8,7 +8,6 @@ A graphical installer for [Zen Browser](https://github.com/zen-browser/desktop) 
 - Downloads the latest Zen Browser AppImage automatically
 - Integrates it into the system via GearLever
 - Shows download progress and logs in real time
-- Also available as a shell script (`get_zen.sh`)
 
 ## Requirements
 
@@ -39,15 +38,3 @@ cargo build --release
 ```bash
 bash build-appimage.sh
 ```
-
-### Shell script (no GUI)
-
-```bash
-bash get_zen.sh
-# or skip confirmation:
-bash get_zen.sh --yes
-```
-
-## License
-
-MIT
