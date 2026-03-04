@@ -1,11 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- Background circle -->
-  <circle cx="128" cy="128" r="120" fill="#1c1c2e"/>
-  <!-- Outer ring -->
-  <circle cx="128" cy="128" r="120" fill="none" stroke="#7c3aed" stroke-width="6"/>
-  <!-- Z letter -->
-  <text x="128" y="160" font-family="sans-serif" font-size="130" font-weight="bold"
-        text-anchor="middle" fill="#a78bfa">Z</text>
-  <!-- Small accent dot -->
-  <circle cx="128" cy="210" r="8" fill="#7c3aed"/>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="56" fill="#F76F53"/>
+  <!-- Download arrow in top third -->
+  <line x1="128" y1="22" x2="128" y2="90" stroke="#F2F0E3" stroke-width="14" stroke-linecap="round"/>
+  <polyline points="105,70 128,96 151,70" fill="none" stroke="#F2F0E3" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Zen concentric circles in bottom half, clearly separated -->
+  <circle cx="128" cy="178" r="55" stroke="#F2F0E3" stroke-width="12"/>
+  <circle cx="128" cy="178" r="35" stroke="#F2F0E3" stroke-width="8.5"/>
+  <circle cx="128" cy="178" r="17" stroke="#F2F0E3" stroke-width="5"/>
 </svg>
