@@ -17,6 +17,9 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
+rust_i18n::i18n!("locales");
+use rust_i18n::t;
+
 const APP_ID: &str = "io.github.kioraga.get-zen";
 const ZEN_URL: &str =
     "https://github.com/zen-browser/desktop/releases/latest/download/zen-x86_64.AppImage";
@@ -45,6 +48,29 @@ enum LogLevel {
 }
 
 fn main() -> glib::ExitCode {
+    // Auto-detect system locale checking several variables in priority order,
+    // skipping empty values (LANGUAGE may be set but empty in GUI sessions).
+    let locale = ["LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"]
+        .iter()
+        .filter_map(|var| std::env::var(var).ok())
+        .find(|v| !v.is_empty())
+        .unwrap_or_default();
+    if locale.starts_with("es") {
+        rust_i18n::set_locale("es");
+    } else {
+        rust_i18n::set_locale("en");
+    }
+
+    // When running as an AppImage, prepend $APPDIR/usr/share to XDG_DATA_DIRS
+    // BEFORE GTK initialises (GTK reads XDG_DATA_DIRS at its first init call).
+    if let Ok(appdir) = std::env::var("APPDIR") {
+        let share = format!("{}/usr/share", appdir);
+        let current = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".to_string());
+        if !current.split(':').any(|p| p == share) {
+            std::env::set_var("XDG_DATA_DIRS", format!("{}:{}", share, current));
+        }
+    }
+
     let app = Application::builder()
         .application_id(APP_ID)
         .build();
@@ -54,12 +80,39 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(app: &Application) {
+    // ── Icon theme search path (needed for AppImage / Wayland) ───────────────
+    // Set the global default icon name for all windows.
+    gtk4::Window::set_default_icon_name("get-zen");
+
+    if let Some(display) = gtk4::gdk::Display::default() {
+        let theme = gtk4::IconTheme::for_display(&display);
+        // When running inside an AppImage, $APPDIR points to the mounted dir.
+        if let Ok(appdir) = std::env::var("APPDIR") {
+            theme.add_search_path(format!("{}/usr/share/icons", appdir));
+        }
+        // Also look for icons next to the binary (installed layout).
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(bin_dir) = exe.parent() {
+                theme.add_search_path(bin_dir.join("../share/icons"));
+            }
+        }
+        // Development fallback: `cargo run` sets cwd to the project root,
+        // where AppDir/usr/share/icons contains the icon.
+        if let Ok(cwd) = std::env::current_dir() {
+            let dev_icons = cwd.join("AppDir/usr/share/icons");
+            if dev_icons.is_dir() {
+                theme.add_search_path(dev_icons);
+            }
+        }
+    }
+
     let window = ApplicationWindow::builder()
         .application(app)
-        .title("Install Zen Browser")
+        .title(&*t!("ui.window_title"))
         .default_width(640)
         .default_height(480)
         .resizable(false)
+        .icon_name("get-zen")
         .build();
 
     // ── CSS ──────────────────────────────────────────────────────────────────
@@ -89,13 +142,11 @@ fn build_ui(app: &Application) {
     header_box.set_margin_bottom(16);
     header_box.set_margin_start(20);
     header_box.set_margin_end(20);
-    let title = Label::new(Some("Zen Browser Installer"));
+    let title = Label::new(Some(&*t!("ui.title")));
     title.add_css_class("title-1");
     title.set_halign(Align::Start);
 
-    let subtitle = Label::new(Some(
-        "Download and install Zen Browser automatically using GearLever.",
-    ));
+    let subtitle = Label::new(Some(&*t!("ui.subtitle")));
     subtitle.add_css_class("dim-label");
     subtitle.set_halign(Align::Start);
     subtitle.set_wrap(true);
@@ -146,7 +197,7 @@ fn build_ui(app: &Application) {
     progress.set_margin_top(10);
     progress.set_margin_bottom(6);
     progress.set_show_text(true);
-    progress.set_text(Some("Ready to install"));
+    progress.set_text(Some(&*t!("ui.ready")));
 
     // Button row
     let btn_box = GtkBox::new(Orientation::Horizontal, 8);
@@ -156,10 +207,10 @@ fn build_ui(app: &Application) {
     btn_box.set_margin_top(4);
     btn_box.set_margin_bottom(20);
 
-    let cancel_btn = Button::with_label("Cancel");
-    let uninstall_btn = Button::with_label("Uninstall");
+    let cancel_btn = Button::with_label(&*t!("ui.btn_cancel"));
+    let uninstall_btn = Button::with_label(&*t!("ui.btn_uninstall"));
     uninstall_btn.add_css_class("destructive-action");
-    let install_btn = Button::with_label("Install");
+    let install_btn = Button::with_label(&*t!("ui.btn_install"));
     install_btn.add_css_class("suggested-action");
 
     btn_box.append(&cancel_btn);
@@ -192,7 +243,7 @@ fn build_ui(app: &Application) {
             running.store(true, Ordering::SeqCst);
             install_btn_ref.set_sensitive(false);
             uninstall_btn_ref.set_sensitive(false);
-            cancel_btn_ref.set_label("Cancel");
+            cancel_btn_ref.set_label(&*t!("ui.btn_cancel"));
             cancel_btn_ref.set_sensitive(false);
 
             let queue = queue.clone();
@@ -217,7 +268,7 @@ fn build_ui(app: &Application) {
             running.store(true, Ordering::SeqCst);
             install_btn_ref.set_sensitive(false);
             uninstall_btn_ref.set_sensitive(false);
-            cancel_btn_ref.set_label("Cancel");
+            cancel_btn_ref.set_label(&*t!("ui.btn_cancel"));
             cancel_btn_ref.set_sensitive(false);
 
             let queue = queue.clone();
@@ -320,19 +371,19 @@ fn build_ui(app: &Application) {
                     Message::Done => {
                         running.store(false, Ordering::SeqCst);
                         progress.set_fraction(1.0);
-                        progress.set_text(Some("Installation complete!"));
+                        progress.set_text(Some(&*t!("ui.install_complete")));
                         install_btn.set_sensitive(false);
                         uninstall_btn.set_sensitive(true);
-                        cancel_btn.set_label("Close");
+                        cancel_btn.set_label(&*t!("ui.btn_close"));
                         cancel_btn.set_sensitive(true);
                     }
                     Message::Uninstalled => {
                         running.store(false, Ordering::SeqCst);
                         progress.set_fraction(1.0);
-                        progress.set_text(Some("Uninstallation complete!"));
+                        progress.set_text(Some(&*t!("ui.uninstall_complete")));
                         install_btn.set_sensitive(true);
                         uninstall_btn.set_sensitive(false);
-                        cancel_btn.set_label("Close");
+                        cancel_btn.set_label(&*t!("ui.btn_close"));
                         cancel_btn.set_sensitive(true);
                     }
                     Message::Error(err) => {
@@ -343,7 +394,7 @@ fn build_ui(app: &Application) {
                             &format!("✖ {}\n", err),
                             &["error"],
                         );
-                        progress.set_text(Some("Operation error"));
+                        progress.set_text(Some(&*t!("ui.operation_error")));
                         install_btn.set_sensitive(true);
                         uninstall_btn.set_sensitive(true);
                         cancel_btn.set_sensitive(true);
@@ -375,8 +426,8 @@ fn run_installation(queue: Arc<Mutex<VecDeque<Message>>>) {
         };
     }
 
-    log!(LogLevel::Info, "=== Zen Browser Installer ===");
-    log!(LogLevel::Info, "Creating temporary directory...");
+    log!(LogLevel::Info, "{}", t!("install.header"));
+    log!(LogLevel::Info, "{}", t!("install.creating_tmp"));
 
     let temp_dir = match tempfile::Builder::new()
         .prefix("zen_install_")
@@ -384,62 +435,56 @@ fn run_installation(queue: Arc<Mutex<VecDeque<Message>>>) {
     {
         Ok(d) => d,
         Err(e) => {
-            push(&queue, Message::Error(format!(
-                "Failed to create temporary directory: {}",
-                e
-            )));
+            push(&queue, Message::Error(t!("install.error_create_tmp", error = e.to_string()).to_string()));
             return;
         }
     };
 
     log!(
         LogLevel::Info,
-        "Temporary directory: {}",
-        temp_dir.path().display()
+        "{}",
+        t!("install.tmp_dir", path = temp_dir.path().display().to_string())
     );
 
     let zen_path = temp_dir.path().join("zen.AppImage");
     let gear_lever_path = temp_dir.path().join("gear_lever.AppImage");
 
     // ── Download Zen Browser ───────────────────────────────────────────────
-    log!(LogLevel::Info, "Downloading Zen Browser...");
+    log!(LogLevel::Info, "{}", t!("install.downloading_zen"));
     progress!(0.02);
 
     if let Err(e) = download_with_retry(ZEN_URL, &zen_path, &queue, 5, (0.05, 0.42)) {
-        push(&queue, Message::Error(format!(
-            "Failed to download Zen Browser: {}",
-            e
-        )));
+        push(&queue, Message::Error(
+            t!("install.error_download_zen", error = e.to_string()).to_string()
+        ));
         return;
     }
 
-    log!(LogLevel::Info, "Waiting before the next download...");
+    log!(LogLevel::Info, "{}", t!("install.waiting_next"));
     thread::sleep(Duration::from_secs(2));
 
     // ── Get GearLever URL ──────────────────────────────────────────────────
-    log!(LogLevel::Info, "Getting GearLever URL from GitHub API...");
+    log!(LogLevel::Info, "{}", t!("install.getting_gearlever_url"));
     let gear_lever_url = match get_gear_lever_url(&queue) {
         Ok(url) => {
-            log!(LogLevel::Success, "URL obtained: {}", url);
+            log!(LogLevel::Success, "{}", t!("install.url_obtained", url = url));
             url
         }
         Err(e) => {
-            push(&queue, Message::Error(format!(
-                "Failed to get GearLever URL: {}",
-                e
-            )));
+            push(&queue, Message::Error(
+                t!("install.error_gearlever_url", error = e.to_string()).to_string()
+            ));
             return;
         }
     };
     progress!(0.50);
 
     // ── Download GearLever ─────────────────────────────────────────────────
-    log!(LogLevel::Info, "Downloading GearLever...");
+    log!(LogLevel::Info, "{}", t!("install.downloading_gearlever"));
     if let Err(e) = download_with_retry(&gear_lever_url, &gear_lever_path, &queue, 5, (0.52, 0.80)) {
-        push(&queue, Message::Error(format!(
-            "Failed to download GearLever: {}",
-            e
-        )));
+        push(&queue, Message::Error(
+            t!("install.error_download_gearlever", error = e.to_string()).to_string()
+        ));
         return;
     }
 
@@ -456,7 +501,7 @@ fn run_installation(queue: Arc<Mutex<VecDeque<Message>>>) {
         Ok(h) => std::path::PathBuf::from(h),
         Err(_) => {
             push(&queue, Message::Error(
-                "Could not determine the HOME directory.".to_string(),
+                t!("install.error_no_home").to_string(),
             ));
             return;
         }
@@ -464,20 +509,17 @@ fn run_installation(queue: Arc<Mutex<VecDeque<Message>>>) {
     let appimages_dir = home_dir.join("AppImages");
 
     if let Err(e) = fs::create_dir_all(&appimages_dir) {
-        push(&queue, Message::Error(format!(
-            "Failed to create ~/AppImages: {}",
-            e
-        )));
+        push(&queue, Message::Error(t!("install.error_create_appimages", error = e.to_string()).to_string()));
         return;
     }
 
     // ── Remove previous installation so GearLever creates a new .desktop ───
-    log!(LogLevel::Info, "Removing previous Zen Browser entries...");
+    log!(LogLevel::Info, "{}", t!("install.removing_previous"));
     let apps_dir = home_dir.join(".local/share/applications");
     let icons_dir = home_dir.join(".local/share/icons");
     for desktop in find_zen_desktop_files(&apps_dir) {
         let _ = fs::remove_file(&desktop);
-        log!(LogLevel::Info, "Removed: {}", desktop.display());
+        log!(LogLevel::Info, "{}", t!("install.removed_file", path = desktop.display().to_string()));
     }
     // Remove any Zen AppImage that GearLever has saved (the name is assigned
     // by GearLever from internal metadata: could be zen.AppImage,
@@ -494,7 +536,7 @@ fn run_installation(queue: Arc<Mutex<VecDeque<Message>>>) {
     // The temp path is passed: GearLever copies the AppImage to ~/AppImages/
     // and generates the .desktop pointing to that persistent location.
     // (The temp directory remains alive until the end of this function.)
-    log!(LogLevel::Info, "Integrating Zen Browser with GearLever...");
+    log!(LogLevel::Info, "{}", t!("install.integrating"));
     progress!(0.85);
 
     let zen_path_str = zen_path.to_string_lossy().to_string();
@@ -514,40 +556,34 @@ fn run_installation(queue: Arc<Mutex<VecDeque<Message>>>) {
             }
             match child.wait() {
                 Ok(status) if status.success() => {
-                    log!(LogLevel::Success, "Zen Browser installed successfully!");
+                    log!(LogLevel::Success, "{}", t!("install.success"));
                     progress!(0.95);
                 }
                 Ok(_) => {
                     push(&queue, Message::Error(
-                        "GearLever exited with error code. Check the logs.".to_string(),
+                        t!("install.error_gearlever_exit").to_string(),
                     ));
                     return;
                 }
                 Err(e) => {
-                    push(&queue, Message::Error(format!(
-                        "Error waiting for GearLever: {}",
-                        e
-                    )));
+                    push(&queue, Message::Error(t!("install.error_gearlever_wait", error = e.to_string()).to_string()));
                     return;
                 }
             }
         }
         Err(e) => {
-            push(&queue, Message::Error(format!(
-                "Failed to run GearLever: {}",
-                e
-            )));
+            push(&queue, Message::Error(t!("install.error_run_gearlever", error = e.to_string()).to_string()));
             return;
         }
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────
-    log!(LogLevel::Info, "Cleaning up temporary files...");
+    log!(LogLevel::Info, "{}", t!("install.cleaning_tmp"));
     // temp_dir is removed when it goes out of scope
 
     log!(
         LogLevel::Success,
-        "Installation complete! Zen Browser is ready to use."
+        "{}", t!("install.complete")
     );
     push(&queue, Message::Done);
 }
@@ -565,7 +601,7 @@ fn get_gear_lever_url(queue: &Arc<Mutex<VecDeque<Message>>>) -> Result<String, S
     for attempt in 1u32..=5 {
         push(queue, Message::Log(
             LogLevel::Info,
-            format!("Attempt {} of 5 (GitHub API)...", attempt),
+            t!("gearlever.attempt", n = attempt).to_string(),
         ));
 
         match client
@@ -591,14 +627,14 @@ fn get_gear_lever_url(queue: &Arc<Mutex<VecDeque<Message>>>) -> Result<String, S
                 Err(e) => {
                     push(queue, Message::Log(
                         LogLevel::Warning,
-                        format!("Failed to parse the response: {}", e),
+                        t!("gearlever.error_parse", error = e.to_string()).to_string(),
                     ));
                 }
             },
             Err(e) => {
                 push(queue, Message::Log(
                     LogLevel::Warning,
-                    format!("Network error: {}", e),
+                    t!("gearlever.error_network", error = e.to_string()).to_string(),
                 ));
             }
         }
@@ -607,13 +643,13 @@ fn get_gear_lever_url(queue: &Arc<Mutex<VecDeque<Message>>>) -> Result<String, S
             let wait = (attempt * 3) as u64;
             push(queue, Message::Log(
                 LogLevel::Warning,
-                format!("No response received. Waiting {}s before retrying...", wait),
+                t!("gearlever.retry_wait", secs = wait).to_string(),
             ));
             thread::sleep(Duration::from_secs(wait));
         }
     }
 
-    Err("Failed to get GearLever URL after 5 attempts".to_string())
+    Err(t!("gearlever.error_all_attempts").to_string())
 }
 
 // ── Download with retries ───────────────────────────────────────────────────
@@ -637,7 +673,7 @@ fn download_with_retry(
     for attempt in 1..=max_attempts {
         push(queue, Message::Log(
             LogLevel::Info,
-            format!("Attempt {} of {}...", attempt, max_attempts),
+            t!("download.attempt", n = attempt, total = max_attempts).to_string(),
         ));
 
         match client
@@ -701,26 +737,26 @@ fn download_with_retry(
                         let mb = downloaded as f64 / (1024.0 * 1024.0);
                         push(queue, Message::Log(
                             LogLevel::Success,
-                            format!("Download successful ({:.1} MB).", mb),
+                            t!("download.success", mb = format!("{:.1}", mb)).to_string(),
                         ));
                         push(queue, Message::Progress(p_end));
                         return Ok(());
                     }
                     Err(e) => {
-                        return Err(format!("Failed to create output file: {}", e));
+                        return Err(t!("download.error_create_file", error = e.to_string()).to_string());
                     }
                 }
             }
             Ok(response) => {
                 push(queue, Message::Log(
                     LogLevel::Warning,
-                    format!("HTTP response {}", response.status()),
+                    t!("download.error_http", status = response.status().to_string()).to_string(),
                 ));
             }
             Err(e) => {
                 push(queue, Message::Log(
                     LogLevel::Warning,
-                    format!("Network error: {}", e),
+                    t!("download.error_network", error = e.to_string()).to_string(),
                 ));
             }
         }
@@ -728,20 +764,14 @@ fn download_with_retry(
         if attempt < max_attempts {
             push(queue, Message::Log(
                 LogLevel::Warning,
-                format!(
-                    "Download failed. Waiting {}s before retrying...",
-                    wait_time
-                ),
+                t!("download.retry_wait", secs = wait_time).to_string(),
             ));
             thread::sleep(Duration::from_secs(wait_time));
             wait_time *= 2;
         }
     }
 
-    Err(format!(
-        "Failed to complete download after {} attempts",
-        max_attempts
-    ))
+    Err(t!("download.error_all_attempts", n = max_attempts).to_string())
 }
 
 // ── Download progress bar in log ────────────────────────────────────────────────
@@ -788,13 +818,13 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
         };
     }
 
-    log!(LogLevel::Info, "=== Zen Browser Uninstaller ===");
+    log!(LogLevel::Info, "{}", t!("uninstall.header"));
 
     let home = match std::env::var("HOME") {
         Ok(h) => std::path::PathBuf::from(h),
         Err(_) => {
             push(&queue, Message::Error(
-                "Could not determine the HOME directory.".to_string(),
+                t!("uninstall.error_no_home").to_string(),
             ));
             return;
         }
@@ -804,7 +834,7 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
     let icons_dir = home.join(".local/share/icons");
 
     // ── Search for Zen .desktop files ──────────────────────────────────────────
-    log!(LogLevel::Info, "Looking for Zen Browser .desktop files...");
+    log!(LogLevel::Info, "{}", t!("uninstall.looking_desktop"));
 
     let desktop_entries = find_zen_desktop_files(&apps_dir);
 
@@ -814,13 +844,12 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
     if desktop_entries.is_empty() {
         log!(
             LogLevel::Warning,
-            "No Zen Browser .desktop entry found."
+            "{}", t!("uninstall.not_found")
         );
     } else {
         log!(
             LogLevel::Info,
-            "Found {} Zen Browser entry(ies).",
-            desktop_entries.len()
+            "{}", t!("uninstall.found_entries", n = desktop_entries.len())
         );
     }
 
@@ -833,8 +862,7 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
 
         log!(
             LogLevel::Info,
-            "Processing: {}",
-            desktop_path.display()
+            "{}", t!("uninstall.processing", path = desktop_path.display().to_string())
         );
 
         // Read the .desktop to extract AppImage and icon paths
@@ -846,26 +874,24 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
             let p = std::path::Path::new(path);
             if p.exists() {
                 match fs::remove_file(p) {
-                    Ok(_) => { log!(LogLevel::Success, "AppImage removed: {}", path); }
-                    Err(e) => { log!(LogLevel::Warning, "Could not remove AppImage ({}): {}", path, e); }
+                    Ok(_) => { log!(LogLevel::Success, "{}", t!("uninstall.appimage_removed", path = path)); }
+                    Err(e) => { log!(LogLevel::Warning, "{}", t!("uninstall.error_remove_appimage", path = path, error = e.to_string())); }
                 }
             } else {
-                log!(LogLevel::Warning, "AppImage not found at: {}", path);
+                log!(LogLevel::Warning, "{}", t!("uninstall.appimage_not_found", path = path));
             }
         }
 
         // Remove the .desktop file
         match fs::remove_file(desktop_path) {
             Ok(_) => {
-                log!(LogLevel::Success, ".desktop entry removed: {}", desktop_path.display());
+                log!(LogLevel::Success, "{}", t!("uninstall.desktop_removed", path = desktop_path.display().to_string()));
                 removed_count += 1;
             }
             Err(e) => {
                 log!(
                     LogLevel::Warning,
-                    "Could not remove .desktop ({}): {}",
-                    desktop_path.display(),
-                    e
+                    "{}", t!("uninstall.error_remove_desktop", path = desktop_path.display().to_string(), error = e.to_string())
                 );
             }
         }
@@ -881,11 +907,11 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
     // ── Remove persistent AppImage (always, regardless of .desktop) ──────────
     // GearLever may assign different names (zen.AppImage, zen_browser.appimage…)
     // depending on internal metadata. We scan the entire directory.
-    log!(LogLevel::Info, "Looking for Zen Browser AppImage...");
+    log!(LogLevel::Info, "{}", t!("uninstall.looking_appimage"));
     if appimages_dir.is_dir() {
         remove_zen_appimages_in_dir(&appimages_dir, &queue);
     } else {
-        log!(LogLevel::Warning, "Directory ~/AppImages not found.");
+        log!(LogLevel::Warning, "{}", t!("uninstall.no_appimages_dir"));
     }
     // Search in alternative locations in case it was installed differently
     for search_dir in [
@@ -901,7 +927,7 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
     remove_icons(&icons_dir, "zen", &queue);
 
     // Update desktop database
-    log!(LogLevel::Info, "Updating desktop database...");
+    log!(LogLevel::Info, "{}", t!("uninstall.updating_db"));
     let _ = std::process::Command::new("update-desktop-database")
         .arg(apps_dir.to_str().unwrap_or(""))
         .output();
@@ -911,12 +937,12 @@ fn run_uninstall(queue: Arc<Mutex<VecDeque<Message>>>) {
     if removed_count > 0 {
         log!(
             LogLevel::Success,
-            "Zen Browser uninstalled successfully!"
+            "{}", t!("uninstall.success")
         );
     } else {
         log!(
             LogLevel::Warning,
-            "No Zen Browser files found. It may have already been uninstalled."
+            "{}", t!("uninstall.nothing_found")
         );
     }
 
@@ -1004,11 +1030,11 @@ fn remove_icons(
             match fs::remove_file(&path) {
                 Ok(_) => push(queue, Message::Log(
                     LogLevel::Success,
-                    format!("Icon removed: {}", path.display()),
+                    t!("icon.removed", path = path.display().to_string()).to_string(),
                 )),
                 Err(e) => push(queue, Message::Log(
                     LogLevel::Warning,
-                    format!("Could not remove icon ({}): {}", path.display(), e),
+                    t!("icon.error_remove", path = path.display().to_string(), error = e.to_string()).to_string(),
                 )),
             }
         }
@@ -1060,11 +1086,11 @@ fn remove_zen_appimages_in_dir(
             match fs::remove_file(&path) {
                 Ok(_) => push(queue, Message::Log(
                     LogLevel::Success,
-                    format!("AppImage removed: {}", path.display()),
+                    t!("uninstall.appimage_removed", path = path.display().to_string()).to_string(),
                 )),
                 Err(e) => push(queue, Message::Log(
                     LogLevel::Warning,
-                    format!("Could not remove AppImage ({}): {}", path.display(), e),
+                    t!("uninstall.error_remove_appimage", path = path.display().to_string(), error = e.to_string()).to_string(),
                 )),
             }
         }

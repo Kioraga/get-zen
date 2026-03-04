@@ -1,3 +1,10 @@
+# To trigger this workflow, create and push a tag with the format v*:
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# This will automatically trigger the workflow and publish the AppImage to GitHub Releases.
+
 name: Release AppImage
 
 on:
